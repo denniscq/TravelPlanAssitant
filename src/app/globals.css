@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Allow page-level scroll when content overflows */
+html, body {
+  overflow: auto;
+  height: 100%;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-stone-50 text-stone-800;
+  }
+
+  ::selection {
+    @apply bg-stone-300 text-stone-900;
+  }
+}
+
+@layer utilities {
+  .font-caveat {
+    font-family: var(--font-caveat), cursive;
+  }
+  .font-patrick {
+    font-family: var(--font-patrick), 'Patrick Hand', cursive;
+  }
+}
+
+/* Override @tailwindcss/typography prose font to use the pencil sketch theme font */
+.prose {
+  font-family: var(--font-patrick), 'Patrick Hand', cursive;
+}
+.prose :where(h1, h2, h3, h4) {
+  font-family: var(--font-caveat), cursive;
+}
+
+/* Pencil sketch style: hand-drawn aesthetic */
+@layer components {
+  .pencil-card {
+    @apply rounded-none border-2 border-stone-400 bg-white/90 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.15)];
+    transform: rotate(-0.3deg);
+  }
+
+  .pencil-card:nth-child(even) {
+    transform: rotate(0.3deg);
+  }
+
+  .pencil-input {
+    @apply rounded-none border-2 border-stone-400 bg-white/80 px-3 py-2 text-stone-800 placeholder-stone-400;
+    outline: none;
+    box-shadow: inset 2px 2px 0px 0px rgba(0,0,0,0.05);
+  }
+
+  .pencil-input:focus {
+    @apply border-stone-600;
+    box-shadow: inset 2px 2px 0px 0px rgba(0,0,0,0.1), 0 0 0 3px rgba(120, 120, 120, 0.15);
+  }
+
+  .pencil-btn {
+    @apply rounded-none border-2 border-stone-500 bg-stone-100 px-4 py-2 text-sm font-semibold text-stone-700 transition-all;
+    box-shadow: 3px 3px 0px 0px rgba(0,0,0,0.15);
+  }
+
+  .pencil-btn:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 4px 4px 0px 0px rgba(0,0,0,0.15);
+  }
+
+  .pencil-btn:active {
+    @apply translate-y-0.5;
+    box-shadow: 1px 1px 0px 0px rgba(0,0,0,0.15);
+  }
+
+  .pencil-btn-primary {
+    @apply pencil-btn border-stone-700 bg-stone-800 text-stone-100;
+  }
+
+  .pencil-btn-primary:hover {
+    @apply bg-stone-700;
+  }
+
+  .pencil-divider {
+    @apply border-t-2 border-stone-300;
+    border-style: dashed;
+  }
+
+  .pencil-label {
+    @apply font-caveat text-lg font-semibold text-stone-700;
+  }
+
+  .pencil-heading {
+    @apply font-caveat text-2xl font-bold text-stone-800;
+  }
+
+  .pencil-badge {
+    @apply inline-block rounded-none border-2 border-stone-400 bg-stone-100 px-2 py-0.5 font-caveat text-sm text-stone-600;
+    transform: rotate(-1deg);
+  }
+
+  /* Hide native scrollbar but keep scroll functionality */
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
