@@ -113,20 +113,84 @@ export interface AmapWalkingDirectionResponse {
   };
 }
 
+/**
+ * AMap integrated transit (/v3/direction/transit/integrated) response shape.
+ *
+ * IMPORTANT: The top-level key is `transits` (array), NOT `transit`. Each
+ * entry is one possible itinerary. Within an itinerary, `segments[i]` has
+ * `walking.steps[].polyline` and `bus.buslines[].polyline` / `subway.steps[].polyline`.
+ *
+ * Reference: https://lbs.amap.com/api/webservice/guide/api/transit
+ */
+export interface AmapTransitStep {
+  instruction: string;
+  road: string;
+  distance: string;
+  duration: string;
+  polyline: string;
+  action?: string;
+  assistant_action?: string;
+}
+
+export interface AmapTransitWalkingSubsegment {
+  origin: string;
+  destination: string;
+  distance: string;
+  duration: string;
+  steps: AmapTransitStep[];
+}
+
+export interface AmapTransitBusPolyline {
+  polyline: string;
+}
+
+export interface AmapTransitBusline {
+  departure_stop: { name: string; id: string; location: string };
+  arrival_stop: { name: string; id: string; location: string };
+  name: string;
+  id: string;
+  type: string;
+  distance: string;
+  duration: string;
+  polyline: string;
+  via_num?: string;
+  via_stops?: { name: string; location: string }[];
+}
+
+export interface AmapTransitBusSubsegment {
+  buslines: AmapTransitBusline[];
+}
+
+export interface AmapTransitSegment {
+  walking?: AmapTransitWalkingSubsegment;
+  bus?: AmapTransitBusSubsegment;
+  /** subway is also possible — same polyline shape as bus. */
+  subway?: AmapTransitBusSubsegment;
+  /** rail / train segments have similar shape. */
+  railway?: { name?: string; trips?: { polyline?: string }[] };
+}
+
+export interface AmapTransitItinerary {
+  cost: string;
+  duration: string;
+  nightflag: string;
+  walking_distance: string;
+  distance: string;
+  missed: string;
+  segments: AmapTransitSegment[];
+}
+
 export interface AmapTransitDirectionResponse {
   status: '0' | '1';
   info: string;
+  count?: string;
   route: {
     origin: string;
     destination: string;
     distance: string;
-    duration: string;
-    transit: {
-      cost: string;
-      distance: string;
-      duration: string;
-      segments: unknown[];
-    };
+    taxi_cost?: string;
+    /** NOTE: real key is `transits` (plural array). */
+    transits: AmapTransitItinerary[];
   };
 }
 
@@ -188,4 +252,27 @@ export interface AmapInputtipTip {
   location: string;
   address: string;
   typecode: string;
+}
+
+// ====== Around Search (for transit stations) ======
+
+/**
+ * Minimal shape we need from AMap around-search for transit stations.
+ * Full field list: https://lbs.amap.com/api/webservice/guide/api/newpoisearch
+ */
+export interface AmapAroundPoiRaw {
+  id: string;
+  name: string;
+  type: string;
+  typecode: string;
+  address: string;
+  location: string;
+  distance: string;
+}
+
+export interface AmapAroundSearchResponse {
+  status: string;
+  info: string;
+  count: string;
+  pois: AmapAroundPoiRaw[];
 }

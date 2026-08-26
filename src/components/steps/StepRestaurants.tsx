@@ -144,35 +144,50 @@ export function StepRestaurants({
           const allNearbyPois: PoiItem[] = [];
           const seenIds = new Set<string>();
 
-          // Fetch nearby restaurants for each attraction in parallel
-          const fetchPromises = selectedAttractions.map(async (attr) => {
-            const response = await fetch('/api/amap/place-around', {
-              signal: abortController.signal,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-request-id': logger.getRequestId(),
-              },
-              body: JSON.stringify({
-                location: { longitude: attr.longitude, latitude: attr.latitude },
-                category: 'restaurant',
-                limit: debouncedTopCount,
-                proximityGroupId: attr.id,
-                proximityGroupName: attr.name,
-              }),
-            });
+          // Fetch nearby restaurants sequentially to avoid hitting Amap's
+          // CUQPS_HAS_EXCEEDED_THE_LIMIT error when several attractions are
+          // selected at once. Sequential also helps respect the QPS budget
+          // documented for the place-around endpoint.
+          const NEARBY_REQUEST_INTERVAL_MS = 250;
+          const results: (PoiItem[] | null)[] = [];
+          for (const attr of selectedAttractions) {
+            if (abortController.signal.aborted) return;
 
-            const result = await response.json();
-            if (abortController.signal.aborted) return null;
-            if (!result.success) {
-              logger.warn('Nearby search failed for ' + attr.name + ' - ' + result.error);
-              return null;
+            try {
+              const response = await fetch('/api/amap/place-around', {
+                signal: abortController.signal,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-request-id': logger.getRequestId(),
+                },
+                body: JSON.stringify({
+                  location: { longitude: attr.longitude, latitude: attr.latitude },
+                  category: 'restaurant',
+                  limit: debouncedTopCount,
+                  proximityGroupId: attr.id,
+                  proximityGroupName: attr.name,
+                }),
+              });
+
+              const result = await response.json();
+              if (abortController.signal.aborted) return;
+              if (!result.success) {
+                logger.warn('Nearby search failed for ' + attr.name + ' - ' + result.error);
+                results.push(null);
+              } else {
+                results.push(result.data as PoiItem[]);
+              }
+            } catch (fetchError) {
+              if (abortController.signal.aborted) return;
+              const message = fetchError instanceof Error ? fetchError.message : String(fetchError);
+              logger.warn('Nearby search threw for ' + attr.name + ' - ' + message);
+              results.push(null);
             }
-            return result.data as PoiItem[];
-          });
 
-          const results = await Promise.all(fetchPromises);
-          if (abortController.signal.aborted) return;
+            if (abortController.signal.aborted) return;
+            await new Promise((resolve) => setTimeout(resolve, NEARBY_REQUEST_INTERVAL_MS));
+          }
 
           for (const pois of results) {
             if (pois === null) continue;

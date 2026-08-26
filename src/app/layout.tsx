@@ -105,7 +105,7 @@ export default function RootLayout({
             </div>
             <nav className="flex items-center gap-4">
               <span className="text-xs text-stone-400">
-                Hope you have a good trip
+                Hope you have a good travel!
               </span>
             </nav>
           </div>

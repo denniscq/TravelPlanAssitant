@@ -10,6 +10,7 @@ interface RouteLineProps {
 
 const TRANSPORT_MODE_COLORS: Record<string, string> = {
   driving: '#c96d24',
+  taxi: '#f97316',
   walking: '#22c55e',
   transit: '#3b82f6',
   cycling: '#a855f7',

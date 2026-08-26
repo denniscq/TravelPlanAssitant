@@ -26,6 +26,7 @@ function formatDuration(seconds: number): string {
 function getTransportModeLabel(mode: string): string {
   const modeLabels: Record<string, string> = {
     driving: '驾车',
+    taxi: '打车',
     walking: '步行',
     transit: '公交',
     cycling: '骑行',

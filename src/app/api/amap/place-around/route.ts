@@ -57,7 +57,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const logger = createServerLogger(request);
 
   try {
-    const requestBody = await request.json();
+    // Parse + validate the request body. JSON parse failures here mean
+    // the client aborted — log a warning and return a no-op instead of
+    // raising ERROR noise in the logs.
+    let requestBody: unknown;
+    try {
+      requestBody = await request.json();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('Nearby POI search request body could not be parsed (client likely aborted) - ' + message);
+      return NextResponse.json({ aborted: true });
+    }
     const validatedRequest = validatePlaceAroundRequest(requestBody);
 
     logger.info(
@@ -91,6 +101,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     if (error instanceof Error) {
+      // Demote JSON parse errors thrown past the inner try/catch (e.g. by
+      // middleware) to a WARN — they indicate a client abort, not a
+      // server bug.
+      if (error instanceof SyntaxError) {
+        logger.warn('Nearby POI search aborted by client - ' + error.message);
+        return NextResponse.json({ aborted: true });
+      }
       logger.error('Nearby POI search failed - ' + error.message);
       return NextResponse.json(
         {

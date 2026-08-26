@@ -4,9 +4,12 @@ export function extractClientIpAddress(request: NextRequest): string {
   const forwardedFor = request.headers.get('x-forwarded-for');
   if (forwardedFor !== null) {
     const ipAddresses = forwardedFor.split(',');
-    const firstIp = ipAddresses[0].trim();
-    if (firstIp.length > 0) {
-      return firstIp;
+    // Pick the first non-empty entry — comma-leading values like
+    // ",10.0.0.1" would otherwise yield an empty string and silently
+    // drop through to the fallback headers.
+    for (const candidate of ipAddresses) {
+      const trimmed = candidate.trim();
+      if (trimmed.length > 0) return trimmed;
     }
   }
 
