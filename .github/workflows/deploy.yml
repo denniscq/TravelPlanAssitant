@@ -1,0 +1,83 @@
+# =============================================================================
+# GitOps deployment pipeline for TravelPlanAssistant.
+#
+# Trigger: push to `main`.
+# Flow:
+#   1. test-and-build (CI gate): npm ci -> test -> tsc -> next build
+#   2. deploy: SSH to the Aliyun server, pull main, build, pm2 reload
+#
+# Required GitHub Secrets (repo Settings -> Secrets and variables -> Actions):
+#   ALIYUN_HOST      - server public IP
+#   ALIYUN_USER      - deploy user (e.g. "deploy")
+#   ALIYUN_SSH_KEY   - private SSH key of the deploy user (no passphrase)
+# =============================================================================
+name: Deploy to Aliyun
+
+on:
+  push:
+    branches: [main]
+
+# Prevent overlapping deployments (queue, do not cancel in-flight deploys)
+concurrency:
+  group: deploy-aliyun
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI gate - nothing deploys unless this passes
+  # ---------------------------------------------------------------------------
+  test-and-build:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Deploy - only runs after the CI gate passes
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Aliyun
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ALIYUN_HOST }}
+          username: ${{ secrets.ALIYUN_USER }}
+          key: ${{ secrets.ALIYUN_SSH_KEY }}
+          script_timeout: 20m
+          script: |
+            set -e
+            # Pull the latest repo first so the freshly-updated deploy.sh
+            # (if it changed in this push) is the one that executes.
+            cd /var/www/travel-plan-assistant
+            git fetch origin main
+            git reset --hard origin/main
+            bash deploy/deploy.sh

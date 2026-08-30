@@ -73,3 +73,7 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Application log files (rotated daily, gitignored by default)
+logs/
+logs/.winston-audit.json
