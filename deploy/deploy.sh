@@ -58,18 +58,32 @@ npm ci
 log "Building production bundle (next build) ..."
 npm run build
 
+# Copy the standalone runtime files Next.js does not auto-bundle:
+#   .next/static  -> pre-built JS/CSS chunks (served as immutable assets)
+#   public/       -> user-uploaded static files (favicon, images, etc.)
+# Without these, pages would render but every static asset would 404.
+if [[ -d ".next/static" ]]; then
+  log "Copying .next/static into standalone bundle ..."
+  mkdir -p .next/standalone/.next
+  cp -r .next/static .next/standalone/.next/static
+fi
+if [[ -d "public" ]]; then
+  log "Copying public/ into standalone bundle ..."
+  cp -r public .next/standalone/public
+fi
+
 # -----------------------------------------------------------------------------
 # 4. Start or reload the PM2 cluster
 # -----------------------------------------------------------------------------
 log "Ensuring PM2 app '${PM2_APP_NAME}' is running ..."
-# `pm2 id <name>` prints "[]" when the app does not exist, yet exits 0.
-# Compare the trimmed output to detect absence reliably.
-PM2_ID=$(pm2 id "${PM2_APP_NAME}" 2>/dev/null | tr -d '[:space:]')
-if [[ "${PM2_ID}" != "[]" && -n "${PM2_ID}" ]]; then
-  log "Reloading PM2 app '${PM2_APP_NAME}' (zero downtime) ..."
-  pm2 reload "${PM2_APP_NAME}" --update-env
+
+# Try zero-downtime reload first; fall back to a fresh start when the app
+# (or the PM2 daemon itself) does not exist yet (first deploy).
+# `|| true` keeps `set -e` from killing us on the reload error path.
+if pm2 reload "${PM2_APP_NAME}" --update-env >/dev/null 2>&1; then
+  log "Reloaded PM2 app '${PM2_APP_NAME}' (zero downtime)"
 else
-  log "Starting PM2 app '${PM2_APP_NAME}' from ecosystem.config.js ..."
+  log "PM2 app '${PM2_APP_NAME}' not running yet; starting from ecosystem.config.js ..."
   pm2 start ecosystem.config.js
 fi
 pm2 save
