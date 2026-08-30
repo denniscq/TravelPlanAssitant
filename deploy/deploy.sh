@@ -94,13 +94,15 @@ pm2 save
 # `pm2 start` returns as soon as the process is forked; the Next.js standalone
 # server still needs a few seconds to bind the port. Poll until it answers,
 # up to HEALTH_TIMEOUT seconds, before declaring failure.
+# Use explicit comparison (avoid `(( ... ))` arithmetic which can interact
+# badly with `set -euo pipefail` on some bash versions).
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-30}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-2}"
 log "Health check (http://127.0.0.1:3000), waiting up to ${HEALTH_TIMEOUT}s ..."
 
 ELAPSED=0
 HTTP_CODE="000"
-while (( ELAPSED < HEALTH_TIMEOUT )); do
+while [[ "${ELAPSED}" -lt "${HEALTH_TIMEOUT}" ]]; do
   HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000 || true)
   if [[ "${HTTP_CODE}" =~ ^[23] ]]; then
     break
