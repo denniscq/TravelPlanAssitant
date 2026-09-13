@@ -72,7 +72,7 @@ jobs:
           host: ${{ secrets.ALIYUN_HOST }}
           username: ${{ secrets.ALIYUN_USER }}
           key: ${{ secrets.ALIYUN_SSH_KEY }}
-          script_timeout: 20m
+          command_timeout: 20m
           script: |
             set -e
             # Pull the latest repo first so the freshly-updated deploy.sh
