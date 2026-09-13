@@ -58,14 +58,23 @@ npm ci
 log "Building production bundle (next build) ..."
 npm run build
 
-# Copy the standalone runtime files Next.js does not auto-bundle:
+# Copy the standalone runtime files Next.js does not auto-bundle.
+# All three directories are required for a working standalone deployment:
 #   .next/static  -> pre-built JS/CSS chunks (served as immutable assets)
+#   .next/server  -> server-side API routes and dynamic page bundles
 #   public/       -> user-uploaded static files (favicon, images, etc.)
-# Without these, pages would render but every static asset would 404.
+# Without .next/static: every asset 404s.
+# Without .next/server: every API route returns "Cannot find module ... route.js".
+# Without public/: /favicon.ico and similar static files 404.
 if [[ -d ".next/static" ]]; then
   log "Copying .next/static into standalone bundle ..."
   mkdir -p .next/standalone/.next
   cp -r .next/static .next/standalone/.next/static
+fi
+if [[ -d ".next/server" ]]; then
+  log "Copying .next/server into standalone bundle ..."
+  mkdir -p .next/standalone/.next
+  cp -r .next/server .next/standalone/.next/server
 fi
 if [[ -d "public" ]]; then
   log "Copying public/ into standalone bundle ..."
