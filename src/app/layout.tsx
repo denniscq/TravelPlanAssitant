@@ -115,7 +115,40 @@ export default function RootLayout({
         </main>
         <footer className="border-t border-stone-300 bg-white/80 py-4" style={{ borderStyle: 'dashed' }}>
           <div className="mx-auto max-w-6xl px-4 text-center text-xs text-stone-400 font-caveat text-base">
-            TravelPlanAssistant — 智能规划你的旅行路线
+            <div>TravelPlanAssistant — 智能规划你的旅行路线</div>
+            {/*
+              ICP filing (China): render only when NEXT_PUBLIC_ICP_FILING_NUMBER is set.
+              The actual number is issued by MIIT after the filing is approved
+              (see docs/deployment-aliyun.md Phase 1). Until then, leave the env
+              var unset so the footer stays clean.
+              Do NOT use a placeholder like "京ICP备XXXXXXXX号" in production;
+              MIIT audits unapproved or fake numbers and may block the site.
+            */}
+            {process.env.NEXT_PUBLIC_ICP_FILING_NUMBER && (
+              <div className="mt-1">
+                <a
+                  href="https://beian.miit.gov.cn"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-stone-600"
+                >
+                  {process.env.NEXT_PUBLIC_ICP_FILING_NUMBER}
+                </a>
+                {process.env.NEXT_PUBLIC_GONGAN_FILING_NUMBER && (
+                  <>
+                    {' · '}
+                    <a
+                      href="https://beian.gov.cn"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-stone-600"
+                    >
+                      {process.env.NEXT_PUBLIC_GONGAN_FILING_NUMBER}
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </footer>
       </body>
