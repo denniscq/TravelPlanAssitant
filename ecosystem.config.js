@@ -19,16 +19,58 @@
 //     later via PM2 load balancing or run a second instance on another port.
 //   - HOSTNAME: 127.0.0.1 keeps Next.js off the public interface; Nginx is
 //     the only ingress (see deploy/nginx-tpa.conf).
+//   - .env.local is parsed manually here (KEY=VALUE per line) and merged into
+//     `env` because PM2's built-in `env_file` field has been observed to be
+//     silently ignored in some configurations (env vars not appearing in
+//     `pm2 env <id>` despite the field being present). Reading + spreading
+//     here removes that ambiguity and works on every PM2 version.
 // =============================================================================
 const path = require('path');
+const fs = require('fs');
 
 const APP_DIR = '/var/www/travel-plan-assistant';
+
+/**
+ * Minimal .env parser: KEY=VALUE per line, ignoring blanks and # comments.
+ * Strips surrounding quotes from values. Does NOT support multi-line values.
+ *
+ * @param {string} filePath absolute path to the env file
+ * @returns {Record<string, string>}
+ */
+function parseEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    // Surface this loudly so deploy.sh doesn't silently start with empty env.
+    throw new Error(`parseEnvFile: file not found: ${filePath}`);
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const result = {};
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    // Strip surrounding single or double quotes if present.
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+// Load .env.local at config-load time so the values are baked into PM2 env.
+const envFromFile = parseEnvFile(path.join(APP_DIR, '.env.local'));
 
 module.exports = {
   apps: [
     {
       name: 'tpa',
-      // Standalone entry produced by `next build` with output: 'standalone'.
+      // Standalone entry produced by `next build` with `output: 'standalone'`.
       // This file already inlines a minimal HTTP server on PORT/HOSTNAME.
       script: path.join(APP_DIR, '.next/standalone/server.js'),
       cwd: APP_DIR,
@@ -43,16 +85,12 @@ module.exports = {
       merge_logs: true,
       time: true,
       env: {
+        // Spread first, so explicit production overrides take precedence.
+        ...envFromFile,
         NODE_ENV: 'production',
         PORT: 3000,
         HOSTNAME: '127.0.0.1',
       },
-      // PM2 loads this file into process.env BEFORE the script runs.
-      // The standalone Next.js server is a plain Node.js process and does
-      // NOT auto-load .env.local (only `next start` / `next dev` do that).
-      // Without this, AMAP_API_KEY and other server-side keys would be
-      // undefined at runtime, causing API routes to return 500.
-      env_file: path.join(APP_DIR, '.env.local'),
     },
   ],
 };

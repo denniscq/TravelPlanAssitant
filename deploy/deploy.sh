@@ -77,15 +77,16 @@ fi
 # -----------------------------------------------------------------------------
 log "Ensuring PM2 app '${PM2_APP_NAME}' is running ..."
 
-# Try zero-downtime reload first; fall back to a fresh start when the app
-# (or the PM2 daemon itself) does not exist yet (first deploy).
-# `|| true` keeps `set -e` from killing us on the reload error path.
-if pm2 reload "${PM2_APP_NAME}" --update-env >/dev/null 2>&1; then
-  log "Reloaded PM2 app '${PM2_APP_NAME}' (zero downtime)"
-else
-  log "PM2 app '${PM2_APP_NAME}' not running yet; starting from ecosystem.config.js ..."
-  pm2 start ecosystem.config.js
-fi
+# PM2 reload semantics:
+#   - `pm2 reload` re-runs the app process (zero-downtime) but keeps the
+#     daemon's cached parse of ecosystem.config.js. Changes to the JS file
+#     itself (new functions, new fields) won't take effect.
+#   - `pm2 kill` followed by `pm2 start` reloads everything from scratch.
+# We always do a fresh start here to guarantee the new ecosystem.config.js
+# is parsed. This costs ~1 second of downtime, which is acceptable for the
+# deploy cadence we have.
+pm2 kill >/dev/null 2>&1 || true
+pm2 start ecosystem.config.js
 pm2 save
 
 # -----------------------------------------------------------------------------
