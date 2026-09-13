@@ -47,6 +47,12 @@ module.exports = {
         PORT: 3000,
         HOSTNAME: '127.0.0.1',
       },
+      // PM2 loads this file into process.env BEFORE the script runs.
+      // The standalone Next.js server is a plain Node.js process and does
+      // NOT auto-load .env.local (only `next start` / `next dev` do that).
+      // Without this, AMAP_API_KEY and other server-side keys would be
+      // undefined at runtime, causing API routes to return 500.
+      env_file: path.join(APP_DIR, '.env.local'),
     },
   ],
 };
