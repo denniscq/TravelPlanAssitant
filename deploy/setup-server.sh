@@ -123,7 +123,29 @@ prepare_app_dir() {
 }
 
 # -----------------------------------------------------------------------------
-# 5. Nginx service enabled
+# 5. Grant deploy user passwordless sudo for nginx / systemctl reload
+# -----------------------------------------------------------------------------
+setup_sudoers() {
+  local SUDOERS_FILE="/etc/sudoers.d/${DEPLOY_USER}-nginx"
+  if [[ ! -f "${SUDOERS_FILE}" ]]; then
+    log "Granting passwordless sudo for nginx/systemctl to user '${DEPLOY_USER}' ..."
+    cat > "${SUDOERS_FILE}" <<-EOF
+# Allow ${DEPLOY_USER} to reload nginx and write to /etc/nginx (deploy.sh).
+${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/sbin/nginx
+${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
+${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/tpa
+${DEPLOY_USER} ALL=(root) NOPASSWD: /usr/bin/git -C ${APP_DIR} checkout HEAD -- deploy/nginx-tpa.conf
+EOF
+    chmod 440 "${SUDOERS_FILE}"
+    log "Sudoers configured: ${SUDOERS_FILE}"
+  else
+    log "Sudoers already present; skipping."
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# 6. Nginx service enabled
 # -----------------------------------------------------------------------------
 enable_nginx() {
   log "Enabling Nginx service..."
@@ -176,6 +198,7 @@ main() {
   install_pm2
   create_deploy_user
   prepare_app_dir
+  setup_sudoers
   enable_nginx
   print_summary
 }

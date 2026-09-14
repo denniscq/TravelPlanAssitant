@@ -18,6 +18,10 @@ APP_DIR="${APP_DIR:-/var/www/travel-plan-assistant}"
 BRANCH="${BRANCH:-main}"
 PM2_APP_NAME="${PM2_APP_NAME:-tpa}"
 
+# ---- Nginx config ---------------------------------------------------------
+NGINX_TARGET="${NGINX_TARGET:-/etc/nginx/sites-available/tpa}"
+NGINX_ENABLED="${NGINX_ENABLED:-/etc/nginx/sites-enabled/tpa}"
+
 log() {
   printf '\033[1;32m[deploy]\033[0m %s\n' "$*"
 }
@@ -125,6 +129,43 @@ if [[ "${HTTP_CODE}" =~ ^[23] ]]; then
   log "OK - application responded with HTTP ${HTTP_CODE} after ${ELAPSED}s"
 else
   fail "Health check failed: HTTP ${HTTP_CODE} after ${HEALTH_TIMEOUT}s. Check: pm2 logs ${PM2_APP_NAME}"
+fi
+
+# -----------------------------------------------------------------------------
+# 6. Sync Nginx configuration (if deploy user has passwordless sudo)
+# -----------------------------------------------------------------------------
+# The template in the repo uses YOUR_DOMAIN as placeholder. We extract the
+# actual domain from the current active config and re-apply the template.
+#
+# This ensures static files are always served from disk (avoiding 403 on
+# stale chunk hashes) and keeps certbot-managed SSL paths intact.
+if [[ -f "${NGINX_TARGET}" ]]; then
+  # Extract the primary domain from the existing config
+  CURRENT_DOMAIN=$(grep -m1 'server_name' "${NGINX_TARGET}" | sed 's/.*server_name *//;s/ .*//;s/;//')
+  if [[ -n "${CURRENT_DOMAIN}" ]]; then
+    # Check if the template has changed compared to the active config
+    TEMPLATE_HASH=$(sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | md5sum | cut -d' ' -f1)
+    ACTIVE_HASH=$(md5sum "${NGINX_TARGET}" | cut -d' ' -f1)
+
+    if [[ "${TEMPLATE_HASH}" != "${ACTIVE_HASH}" ]]; then
+      log "Nginx config changed — applying update ..."
+      sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | sudo tee "${NGINX_TARGET}" >/dev/null
+      if sudo nginx -t 2>&1; then
+        sudo systemctl reload nginx
+        log "Nginx config applied and reloaded."
+      else
+        log "WARNING: nginx config test failed — reverting. Check the template."
+        # Restore from git history (the previously committed config)
+        sudo git -C "${APP_DIR}" checkout HEAD -- deploy/nginx-tpa.conf
+        sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | sudo tee "${NGINX_TARGET}" >/dev/null
+        sudo nginx -t && sudo systemctl reload nginx
+      fi
+    else
+      log "Nginx config unchanged — skipping reload."
+    fi
+  else
+    log "WARNING: Could not extract domain from ${NGINX_TARGET} — skipping nginx sync."
+  fi
 fi
 
 log "Deploy complete."
