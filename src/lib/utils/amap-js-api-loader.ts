@@ -69,7 +69,9 @@ export async function detectCurrentCity(): Promise<DetectedCity | null> {
       }
     );
 
-    if (result.city != null && result.city !== '') {
+    if (result.city != null && result.city !== '' &&
+        typeof result.position.lng === 'number' && isFinite(result.position.lng) &&
+        typeof result.position.lat === 'number' && isFinite(result.position.lat)) {
       return {
         name: result.city,
         adcode: result.adcode,

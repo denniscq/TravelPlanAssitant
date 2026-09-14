@@ -29,12 +29,21 @@ export default function HomePageClient(): React.ReactElement {
 
   const logger = getClientLogger();
 
-  // Safety effect: if currentCity ever becomes invalid (empty/null name), revert to default.
+  // Safety effect: if currentCity ever becomes invalid (empty/null name, or NaN center), revert to default.
   // This catches any edge case from async detection code paths.
   useEffect(() => {
     if (currentCity.name == null || currentCity.name === '' || currentCity.adcode == null || currentCity.adcode === '') {
       logger.error('BUG: currentCity became invalid (name="' + String(currentCity.name) + '" adcode="' + String(currentCity.adcode) + '") — reverting to default');
       setCurrentCity({ ...DEFAULT_CITY }); // spread to avoid reference-mutation issues
+      return;
+    }
+    if (currentCity.center == null ||
+        !Array.isArray(currentCity.center) ||
+        currentCity.center.length !== 2 ||
+        typeof currentCity.center[0] !== 'number' || !isFinite(currentCity.center[0]) ||
+        typeof currentCity.center[1] !== 'number' || !isFinite(currentCity.center[1])) {
+      logger.error('BUG: currentCity.center is invalid (' + JSON.stringify(currentCity.center) + ') — reverting to default');
+      setCurrentCity({ ...DEFAULT_CITY });
     }
   }, [currentCity]); // eslint-disable-line react-hooks/exhaustive-deps
 
