@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Caveat, Patrick_Hand } from 'next/font/google';
+import Image from 'next/image';
 import './globals.css';
 import { LoggerInitializer } from '../components/shared/LoggerInitializer';
 
@@ -114,8 +115,10 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-stone-300 bg-white/80 py-4" style={{ borderStyle: 'dashed' }}>
-          <div className="mx-auto max-w-6xl px-4 text-center text-xs text-stone-400 font-caveat text-base">
-            <div>TravelPlanAssistant — 智能规划你的旅行路线</div>
+          <div className="mx-auto max-w-6xl px-4">
+            <div className="text-center font-caveat text-base text-stone-500">
+              TravelPlanAssistant — 智能规划你的旅行路线
+            </div>
             {/*
               ICP filing (China): render only when NEXT_PUBLIC_ICP_FILING_NUMBER is set.
               The actual number is issued by MIIT after the filing is approved
@@ -125,24 +128,32 @@ export default function RootLayout({
               MIIT audits unapproved or fake numbers and may block the site.
             */}
             {process.env.NEXT_PUBLIC_ICP_FILING_NUMBER && (
-              <div className="mt-1">
+              <div className="mt-1 flex items-center justify-center gap-x-1 text-base text-stone-400 font-caveat">
                 <a
                   href="https://beian.miit.gov.cn"
                   target="_blank"
                   rel="noreferrer"
-                  className="hover:text-stone-600"
+                  className="transition-colors hover:text-stone-600"
                 >
                   {process.env.NEXT_PUBLIC_ICP_FILING_NUMBER}
                 </a>
                 {process.env.NEXT_PUBLIC_GONGAN_FILING_NUMBER && (
                   <>
-                    {' · '}
+                    <span className="text-stone-300 select-none">|</span>
                     <a
                       href="https://beian.gov.cn"
                       target="_blank"
                       rel="noreferrer"
-                      className="hover:text-stone-600"
+                      className="inline-flex items-center gap-x-1 transition-colors hover:text-stone-600"
                     >
+                      <Image
+                        src="/gongan.png"
+                        alt=""
+                        width={18}
+                        height={18}
+                        className="h-3.5 w-auto"
+                        aria-hidden="true"
+                      />
                       {process.env.NEXT_PUBLIC_GONGAN_FILING_NUMBER}
                     </a>
                   </>

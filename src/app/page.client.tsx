@@ -10,94 +10,85 @@ import { StepRestaurants } from '../components/steps/StepRestaurants';
 import { StepRoutePlan } from '../components/steps/StepRoutePlan';
 import CitySelector from '../components/ui/CitySelector';
 import type { CityInfo } from '../components/ui/CitySelector';
-import { PageSkeleton } from '../components/ui/PageSkeleton';
 import { getClientLogger } from '../lib/utils/client-logger';
 
 const STEP_LABELS = ['起终点', '景点', '餐厅', '路线规划'];
 
+const DEFAULT_CITY: CityInfo = {
+  name: '北京',
+  adcode: '110000',
+  center: [116.397428, 39.90923],
+};
+
 export default function HomePageClient(): React.ReactElement {
   const [currentStep, setCurrentStep] = useState(1);
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  const [currentCity, setCurrentCity] = useState<CityInfo | null>(null);
+  const [currentCity, setCurrentCity] = useState<CityInfo>(DEFAULT_CITY);
   const [dayRoutes, setDayRoutes] = useState<DayRouteData[] | null>(null);
   const [selectedAttractions, setSelectedAttractions] = useState<PoiItem[]>([]);
   const [selectedRestaurants, setSelectedRestaurants] = useState<PoiItem[]>([]);
 
   const logger = getClientLogger();
 
-  // Detect IP-based city on mount using AMap Geolocation (reliable in China)
+  // Safety effect: if currentCity ever becomes invalid (empty/null name), revert to default.
+  // This catches any edge case from async detection code paths.
+  useEffect(() => {
+    if (currentCity.name == null || currentCity.name === '' || currentCity.adcode == null || currentCity.adcode === '') {
+      logger.error('BUG: currentCity became invalid (name="' + String(currentCity.name) + '" adcode="' + String(currentCity.adcode) + '") — reverting to default');
+      setCurrentCity({ ...DEFAULT_CITY }); // spread to avoid reference-mutation issues
+    }
+  }, [currentCity]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect real city via AMap Geolocation, falling back to IP API.
+  // currentCity is already set to Beijing by default, so there is never a
+  // "null → fallback" transition — eliminating the flicker issue entirely.
   useEffect(() => {
     let cancelled = false;
 
+    const isCityValid = (c: CityInfo): boolean =>
+      typeof c.name === 'string' && c.name !== '' && typeof c.adcode === 'string' && c.adcode !== '';
+
     const detectCity = async () => {
       try {
-        // Dynamic import to avoid bundling browser-only module at build time
         const { detectCurrentCity } = await import('../lib/utils/amap-js-api-loader');
         const detected = await detectCurrentCity();
         if (cancelled) return;
 
-        if (detected !== null) {
+        if (detected !== null && isCityValid(detected)) {
           setCurrentCity(detected);
           logger.info('City detected via AMap Geolocation - ' + detected.name);
           return;
         }
 
-        // AMap Geolocation failed — try server-side IP API as fallback
         logger.warn('AMap Geolocation returned no city, trying server-side IP API');
         const response = await fetch('/api/amap/ip-location');
         const result = await response.json();
         if (cancelled) return;
-        if (result.success && result.data.city !== '') {
+        if (result.success && typeof result.data.city === 'string' && result.data.city !== '') {
           const city: CityInfo = {
             name: result.data.city,
             adcode: result.data.adcode,
             center: [116.397428, 39.90923],
           };
-          setCurrentCity(city);
-          logger.info('IP city detected via server API - ' + city.name);
-        } else {
-          fallbackToDefault();
+          if (isCityValid(city)) {
+            setCurrentCity(city);
+            logger.info('IP city detected via server API - ' + city.name);
+          }
         }
+        // else: keep default Beijing — no explicit fallback needed
       } catch (error) {
         if (cancelled) return;
         logger.error('City detection failed - ' + String(error));
-        fallbackToDefault();
+        // keep default Beijing
       }
-    };
-
-    const fallbackToDefault = (): void => {
-      if (currentCity !== null) return;
-      setCurrentCity({
-        name: '北京',
-        adcode: '110000',
-        center: [116.397428, 39.90923],
-      });
     };
 
     detectCity();
 
-    // Timeout: if IP detection takes > 5s, fall back to default
-    const timeoutId = setTimeout(() => {
-      if (currentCity === null) {
-        logger.warn('IP detection timed out, falling back to default city');
-        fallbackToDefault();
-      }
-    }, 5000);
-
     return () => {
       cancelled = true;
-      clearTimeout(timeoutId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Mark initialization complete after city is detected
-  useEffect(() => {
-    if (currentCity !== null) {
-      setIsInitializing(false);
-    }
-  }, [currentCity]);
 
   useEffect(() => {
     logger.info('Step changed to ' + currentStep + ' - ' + STEP_LABELS[currentStep - 1]);
@@ -172,10 +163,6 @@ export default function HomePageClient(): React.ReactElement {
     setSelectedRestaurants([]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (isInitializing) {
-    return <PageSkeleton />;
-  }
-
   const isMapStep = currentStep === 2 || currentStep === 3 || currentStep === 4;
 
   return (
@@ -193,13 +180,11 @@ export default function HomePageClient(): React.ReactElement {
 
         {/* City selector — hidden on mobile during map steps to save vertical space */}
         <div className={'pencil-card mb-4' + (isMapStep && currentStep !== 4 ? ' hidden lg:block' : '')}>
-          {currentCity !== null && (
-            <CitySelector
-              currentCity={currentCity}
-              onCityChange={handleCityChange}
-              readOnly={currentStep !== 1}
-            />
-          )}
+          <CitySelector
+            currentCity={currentCity}
+            onCityChange={handleCityChange}
+            readOnly={currentStep !== 1}
+          />
         </div>
 
         <StepBar

@@ -38,9 +38,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       success: true,
       data: {
-        province: data.province,
-        city: data.city,
-        adcode: data.adcode,
+        province: typeof data.province === 'string' ? data.province : '',
+        city: typeof data.city === 'string' ? data.city : '',
+        adcode: typeof data.adcode === 'string' ? data.adcode : '',
       },
     });
   } catch (error) {
