@@ -139,32 +139,41 @@ fi
 #
 # This ensures static files are always served from disk (avoiding 403 on
 # stale chunk hashes) and keeps certbot-managed SSL paths intact.
+#
+# NOTE: This step requires passwordless sudo for nginx/systemctl.
+# Run once on the server to enable:
+#   sudo bash "${APP_DIR}/deploy/setup-server.sh"
 if [[ -f "${NGINX_TARGET}" ]]; then
-  # Extract the primary domain from the existing config
-  CURRENT_DOMAIN=$(grep -m1 'server_name' "${NGINX_TARGET}" | sed 's/.*server_name *//;s/ .*//;s/;//')
-  if [[ -n "${CURRENT_DOMAIN}" ]]; then
-    # Check if the template has changed compared to the active config
-    TEMPLATE_HASH=$(sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | md5sum | cut -d' ' -f1)
-    ACTIVE_HASH=$(md5sum "${NGINX_TARGET}" | cut -d' ' -f1)
+  if sudo -n true 2>/dev/null; then
+    # Extract the primary domain from the existing config
+    CURRENT_DOMAIN=$(grep -m1 'server_name' "${NGINX_TARGET}" | sed 's/.*server_name *//;s/ .*//;s/;//')
+    if [[ -n "${CURRENT_DOMAIN}" ]]; then
+      # Check if the template has changed compared to the active config
+      TEMPLATE_HASH=$(sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | md5sum | cut -d' ' -f1)
+      ACTIVE_HASH=$(md5sum "${NGINX_TARGET}" | cut -d' ' -f1)
 
-    if [[ "${TEMPLATE_HASH}" != "${ACTIVE_HASH}" ]]; then
-      log "Nginx config changed — applying update ..."
-      sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | sudo tee "${NGINX_TARGET}" >/dev/null
-      if sudo nginx -t 2>&1; then
-        sudo systemctl reload nginx
-        log "Nginx config applied and reloaded."
-      else
-        log "WARNING: nginx config test failed — reverting. Check the template."
-        # Restore from git history (the previously committed config)
-        sudo git -C "${APP_DIR}" checkout HEAD -- deploy/nginx-tpa.conf
+      if [[ "${TEMPLATE_HASH}" != "${ACTIVE_HASH}" ]]; then
+        log "Nginx config changed — applying update ..."
         sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | sudo tee "${NGINX_TARGET}" >/dev/null
-        sudo nginx -t && sudo systemctl reload nginx
+        if sudo nginx -t 2>&1; then
+          sudo systemctl reload nginx
+          log "Nginx config applied and reloaded."
+        else
+          log "WARNING: nginx config test FAILED — restoring previous config."
+          # Restore from git: checkout the old template and re-apply
+          sudo git -C "${APP_DIR}" checkout HEAD~1 -- deploy/nginx-tpa.conf 2>/dev/null || true
+          sed "s/YOUR_DOMAIN/${CURRENT_DOMAIN}/g" "${APP_DIR}/deploy/nginx-tpa.conf" | sudo tee "${NGINX_TARGET}" >/dev/null
+          sudo nginx -t && sudo systemctl reload nginx && log "Previous config restored."
+        fi
+      else
+        log "Nginx config unchanged — skipping reload."
       fi
     else
-      log "Nginx config unchanged — skipping reload."
+      log "WARNING: Could not extract domain from ${NGINX_TARGET} — skipping nginx sync."
     fi
   else
-    log "WARNING: Could not extract domain from ${NGINX_TARGET} — skipping nginx sync."
+    log "WARNING: passwordless sudo not available — skipping Nginx config sync."
+    log "  To enable, run once on the server: sudo bash ${APP_DIR}/deploy/setup-server.sh"
   fi
 fi
 
